@@ -4,7 +4,7 @@ from typing import List
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import AudioFileClip, ImageClip, TextClip, concatenate_videoclips
+from moviepy.editor import AudioFileClip, CompositeAudioClip, ImageClip, TextClip, concatenate_videoclips
 
 
 def _split_script(script: str) -> List[str]:
@@ -142,6 +142,8 @@ def generate_video_from_script(
     style: str = "Shorts",
     captions: bool = True,
     subtitle_path: str | None = None,
+    music_path: str | None = None,
+    music_volume: float = 0.12,
 ) -> str:
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     sections = _split_script(script)
@@ -174,9 +176,18 @@ def generate_video_from_script(
     final_clip = concatenate_videoclips(clips, method="compose")
 
     if os.path.exists(audio_path):
-        audio = AudioFileClip(audio_path)
-        final_clip = final_clip.set_audio(audio)
-        final_clip = final_clip.subclip(0, min(final_clip.duration, audio.duration))
+        voice_audio = AudioFileClip(audio_path)
+        final_clip = final_clip.set_audio(voice_audio)
+        if music_path and os.path.exists(music_path):
+            music_audio = AudioFileClip(music_path).volumex(music_volume)
+            combined = CompositeAudioClip([
+                voice_audio.volumex(1.0),
+                music_audio.set_start(0),
+            ])
+            final_clip = final_clip.set_audio(combined)
+            final_clip = final_clip.subclip(0, min(final_clip.duration, max(voice_audio.duration, music_audio.duration)))
+        else:
+            final_clip = final_clip.subclip(0, min(final_clip.duration, voice_audio.duration))
     else:
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
