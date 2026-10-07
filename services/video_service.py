@@ -64,7 +64,6 @@ def _make_scene_image(title: str, body: str, accent: tuple) -> Image.Image:
         font_big = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
-    # soft background gradients
     for y in range(height):
         ratio = y / height
         r = int(12 + (25 - 12) * ratio)
@@ -109,15 +108,46 @@ def _make_caption_overlay(text: str, duration: float) -> TextClip:
     )
 
 
+def _write_srt(subtitle_path: str, sections: List[str], base_duration: float) -> None:
+    if not subtitle_path:
+        return
+    os.makedirs(os.path.dirname(subtitle_path) or ".", exist_ok=True)
+
+    rows = []
+    total_time = 0.0
+    for idx, segment in enumerate(sections, start=1):
+        start = total_time
+        end = total_time + max(base_duration, min(7, len(segment.split()) * 0.22))
+        start_fmt = _format_srt_time(start)
+        end_fmt = _format_srt_time(end)
+        rows.append(f"{idx}\n{start_fmt} --> {end_fmt}\n{segment[:120]}\n")
+        total_time = end
+
+    with open(subtitle_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(rows))
+
+
+def _format_srt_time(seconds: float) -> str:
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int(round((seconds - int(seconds)) * 1000))
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
 def generate_video_from_script(
     script: str,
     audio_path: str,
     output_path: str,
     style: str = "Shorts",
     captions: bool = True,
+    subtitle_path: str | None = None,
 ) -> str:
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     sections = _split_script(script)
+
+    if subtitle_path:
+        _write_srt(subtitle_path, sections, 4 if style.lower() == "shorts" else 5)
 
     clips = []
     base_section_duration = 4 if style.lower() == "shorts" else 5
